@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swear Jar</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🫙</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="title">🫙 Swear Jar</h1>
+        </header>
+
+        <main class="main-buttons">
+            <button class="swear-button ben-button" id="benButton" data-person="ben">
+                <div class="button-content">
+                    <span class="name">Ben</span>
+                    <span class="count" id="benCount">0</span>
+                </div>
+            </button>
+            
+            <button class="swear-button kaiti-button" id="kaitiButton" data-person="kaiti">
+                <div class="button-content">
+                    <span class="name">Kaiti</span>
+                    <span class="count" id="kaitiCount">0</span>
+                </div>
+            </button>
+        </main>
+
+        <footer class="footer">
+            <button class="payout-button" id="payoutButton">
+                💰 Payout & Reset
+            </button>
+        </footer>
+    </div>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
