@@ -1,0 +1,16 @@
+{
+  "name": "swear-jar",
+  "version": "1.0.0",
+  "description": "Shared swear jar tracking app for Ben and Kaiti",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "cd server && npm install && npm start",
+    "dev": "cd server && npm run dev"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": ["swear-jar", "tracking", "family"],
+  "author": "Ben",
+  "license": "MIT"
+}
