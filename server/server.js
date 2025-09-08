@@ -69,8 +69,9 @@ if (isProduction && redisUrl) {
   // Clear timeout if connection succeeds
   client.on('connect', () => {
     clearTimeout(connectionTimeout);
-    console.log('✅ Redis connected successfully - app ready for multi-device sync');
+    console.log('✅ Redis connected successfully - starting HTTP server');
     redisConnected = true;
+    startHttpServer();
   });
   
   // ATTEMPT CONNECTION - BUT TIMEOUT WILL KILL US IF IT HANGS
@@ -85,9 +86,10 @@ if (isProduction && redisUrl) {
   });
 }
 
-// Local development mode
+// Local development mode - start HTTP server immediately
 if (!isProduction) {
   console.log('🏠 Local development mode - using file storage');
+  startHttpServer();
 }
 
 console.log(`🗄️  Storage mode: ${isProduction ? 'Redis (REQUIRED)' : 'File (local dev)'}`);
@@ -277,7 +279,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🫙 Swear jar server running on port ${PORT}`);
-  console.log(`📱 Open http://localhost:${PORT} to use the app`);
-});
+// DO NOT START HTTP SERVER UNTIL REDIS IS READY
+let httpServer = null;
+
+function startHttpServer() {
+  if (httpServer) return; // Already started
+  
+  httpServer = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🫙 Swear jar server running on port ${PORT}`);
+    console.log(`📱 Open http://localhost:${PORT} to use the app`);
+    console.log(`🔗 App ready with Redis connection - multi-device sync enabled!`);
+  });
+}
