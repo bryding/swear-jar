@@ -8,20 +8,20 @@
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🫙</text></svg>">
 </head>
 <body>
-    <div class="container">
+    <div class="container" id="appContainer" style="display: none;">
         <header class="header">
             <h1 class="title">🫙 Swear Jar</h1>
         </header>
 
         <main class="main-buttons">
-            <button class="swear-button ben-button" id="benButton" data-person="ben">
+            <button class="swear-button ben-button" id="benButton" data-person="ben" disabled>
                 <div class="button-content">
                     <span class="name">Ben</span>
                     <span class="count" id="benCount">0</span>
                 </div>
             </button>
             
-            <button class="swear-button kaiti-button" id="kaitiButton" data-person="kaiti">
+            <button class="swear-button kaiti-button" id="kaitiButton" data-person="kaiti" disabled>
                 <div class="button-content">
                     <span class="name">Kaiti</span>
                     <span class="count" id="kaitiCount">0</span>
@@ -30,16 +30,34 @@
         </main>
 
         <footer class="footer">
-            <button class="payout-button" id="payoutButton">
+            <button class="payout-button" id="payoutButton" disabled>
                 💰 Payout & Reset
             </button>
         </footer>
     </div>
 
-    <div class="loading" id="loading">
-        <div class="spinner"></div>
+    <!-- Connection Status Screen -->
+    <div class="connection-screen" id="connectionScreen">
+        <div class="connection-content">
+            <h1 class="connection-title">🫙 Swear Jar</h1>
+            <div class="connection-status" id="connectionStatus">
+                <div class="spinner"></div>
+                <p id="connectionMessage">Connecting to database...</p>
+            </div>
+            <div class="connection-details" id="connectionDetails"></div>
+        </div>
     </div>
 
-    <script src="script-static.js"></script>
+    <!-- Error Modal -->
+    <div class="error-modal" id="errorModal">
+        <div class="error-content">
+            <h2>❌ Database Connection Failed</h2>
+            <p id="errorMessage">Cannot connect to the database. Device syncing will not work.</p>
+            <div class="error-details" id="errorDetails"></div>
+            <button class="retry-button" id="retryButton">Retry Connection</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
 </body>
 </html>

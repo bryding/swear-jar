@@ -142,23 +142,118 @@ body {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
 
-.loading {
+/* Connection Screen */
+.connection-screen {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.connection-content {
+    text-align: center;
+    color: white;
+    max-width: 400px;
+    padding: 40px;
+}
+
+.connection-title {
+    font-size: 2.5rem;
+    margin-bottom: 40px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.connection-status {
+    margin-bottom: 30px;
+}
+
+.connection-status p {
+    font-size: 1.2rem;
+    margin-top: 20px;
+    opacity: 0.9;
+}
+
+.connection-details {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 20px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    text-align: left;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Error Modal */
+.error-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 3000;
 }
 
-.loading.show {
+.error-modal.show {
     display: flex;
 }
 
+.error-content {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 500px;
+    margin: 20px;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.error-content h2 {
+    color: #ff4757;
+    margin-bottom: 20px;
+}
+
+.error-details {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 0;
+    font-family: monospace;
+    font-size: 0.8rem;
+    text-align: left;
+    max-height: 150px;
+    overflow-y: auto;
+    border-left: 4px solid #ff4757;
+}
+
+.retry-button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 15px 30px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.retry-button:hover {
+    transform: translateY(-2px);
+}
+
+/* Loading Spinner */
 .spinner {
     width: 50px;
     height: 50px;
@@ -166,10 +261,18 @@ body {
     border-radius: 50%;
     border-top-color: white;
     animation: spin 1s ease-in-out infinite;
+    margin: 0 auto;
 }
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* Disabled buttons */
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .swear-button::before {
