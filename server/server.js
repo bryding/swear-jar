@@ -194,10 +194,11 @@ function validateCount(count) {
 
 // Debug endpoint to check database status
 app.get('/api/status', (req, res) => {
+  const usingRedis = !!redisUrl;
   const status = {
-    database: useRedis ? 'Redis' : 'File',
-    connected: useRedis ? redisConnected : true,
-    redisUrl: !!process.env.REDIS_URL,
+    database: usingRedis ? 'Redis' : 'File',
+    connected: usingRedis ? redisConnected : true,
+    redisUrl: !!redisUrl,
     environment: {
       NODE_ENV: process.env.NODE_ENV,
       RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
