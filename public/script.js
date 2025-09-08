@@ -14,6 +14,7 @@ class SwearJarApp {
         this.payoutButton = document.getElementById('payoutButton');
         this.benCount = document.getElementById('benCount');
         this.kaitiCount = document.getElementById('kaitiCount');
+        this.payoutTotal = document.getElementById('payoutTotal');
         
         this.databaseConnected = false;
         this.connectionLog = [];
@@ -146,6 +147,7 @@ class SwearJarApp {
             // Update display with real data
             this.benCount.textContent = data.ben;
             this.kaitiCount.textContent = data.kaiti;
+            this.updatePayoutTotal(data.ben + data.kaiti);
             
             return { success: true };
             
@@ -289,6 +291,11 @@ class SwearJarApp {
     updateDisplay(data) {
         this.animateCountUpdate(this.benCount, data.ben);
         this.animateCountUpdate(this.kaitiCount, data.kaiti);
+        this.updatePayoutTotal(data.ben + data.kaiti);
+    }
+
+    updatePayoutTotal(total) {
+        this.payoutTotal.textContent = `$${total}`;
     }
 
     animateCountUpdate(element, newValue) {
