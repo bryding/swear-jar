@@ -323,8 +323,66 @@ class SwearJarApp {
         // Could add toast notifications here
         console.error('App Error:', message);
     }
+
+    async setBenCount(count) {
+        if (!this.databaseConnected) {
+            console.error('Cannot set count - database not connected');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/counts/ben`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ count: parseInt(count) })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to set count');
+            }
+            
+            const data = await response.json();
+            this.updateDisplay(data);
+            console.log(`Ben's count set to ${count}`);
+            
+        } catch (error) {
+            console.error(`Failed to set Ben's count:`, error.message);
+        }
+    }
+
+    async setKaitiCount(count) {
+        if (!this.databaseConnected) {
+            console.error('Cannot set count - database not connected');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/counts/kaiti`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ count: parseInt(count) })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to set count');
+            }
+            
+            const data = await response.json();
+            this.updateDisplay(data);
+            console.log(`Kaiti's count set to ${count}`);
+            
+        } catch (error) {
+            console.error(`Failed to set Kaiti's count:`, error.message);
+        }
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new SwearJarApp();
+    window.swearJar = new SwearJarApp();
 });
+
+// Dev console commands
+window.setBen = (count) => window.swearJar.setBenCount(count);
+window.setKaiti = (count) => window.swearJar.setKaitiCount(count);
