@@ -18,6 +18,20 @@ Open `http://localhost:3000` in your browser.
 - **Production**: Requires Redis for multi-device sync
 - **Dev console**: Use `setBen(10)` and `setKaiti(5)` in browser dev tools for testing
 
+## Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test suite
+npm test server/tests/        # Backend tests
+npm test tests/integration/   # Integration tests  
+npm test tests/frontend/      # Frontend tests
+```
+
+**Coverage**: 66 tests across authentication, API endpoints, rate limiting, and UI components.
+
 ## Environment Setup
 
 ```bash
