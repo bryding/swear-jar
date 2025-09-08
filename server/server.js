@@ -11,6 +11,7 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 // STRICT REDIS-ONLY SETUP - NO FALLBACKS IN PRODUCTION
 let client;
 let redisConnected = false;
+let httpServer = null;
 const redisUrl = process.env.REDIS_PRIVATE_URL || process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL;
 const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -30,6 +31,12 @@ if (isProduction && !redisUrl) {
   console.error('💥 This app REQUIRES a database for syncing between devices');
   console.error('💥 Check Railway environment variables');
   process.exit(1);
+}
+
+// Local development fallback
+if (!isProduction && !redisUrl) {
+  console.log('🏠 Local development mode - no Redis URL found, using file storage');
+  startHttpServer();
 }
 
 // FAIL FAST IN PRODUCTION WITHOUT REDIS CONNECTION
@@ -86,10 +93,36 @@ if (isProduction && redisUrl) {
   });
 }
 
-// Local development mode - start HTTP server immediately
-if (!isProduction) {
+// Local development with Redis URL - attempt connection
+if (!isProduction && redisUrl) {
+  console.log('🏠 Local development mode - attempting Redis connection...');
+  
+  client = redis.createClient({
+    url: redisUrl
+  });
+  
+  client.on('error', (err) => {
+    console.warn('⚠️ Redis connection failed in local mode:', err.message);
+    console.log('🏠 Falling back to file storage for local development');
+    redisConnected = false;
+    if (!httpServer) startHttpServer();
+  });
+  
+  client.on('connect', () => {
+    console.log('✅ Redis connected in local mode');
+    redisConnected = true;
+    if (!httpServer) startHttpServer();
+  });
+  
+  client.connect().catch(err => {
+    console.warn('⚠️ Redis connection failed in local mode:', err.message);
+    console.log('🏠 Falling back to file storage for local development');
+    redisConnected = false;
+    if (!httpServer) startHttpServer();
+  });
+} else if (!isProduction) {
   console.log('🏠 Local development mode - using file storage');
-  startHttpServer();
+  if (!httpServer) startHttpServer();
 }
 
 console.log(`🗄️  Storage mode: ${isProduction ? 'Redis (REQUIRED)' : 'File (local dev)'}`);
@@ -219,8 +252,8 @@ app.get('/api/counts', async (req, res) => {
     console.error('API Error reading counts:', error.message);
     res.status(500).json({ 
       error: error.message,
-      database: useRedis ? 'Redis' : 'File',
-      connected: useRedis ? redisConnected : true
+      database: !!redisUrl ? 'Redis' : 'File',
+      connected: !!redisUrl ? redisConnected : true
     });
   }
 });
@@ -280,8 +313,6 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// DO NOT START HTTP SERVER UNTIL REDIS IS READY
-let httpServer = null;
 
 function startHttpServer() {
   if (httpServer) return; // Already started
