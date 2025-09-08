@@ -8,25 +8,35 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
 
-// Redis setup - REQUIRE Redis in production
+// STRICT REDIS-ONLY SETUP - NO FALLBACKS IN PRODUCTION
 let client;
 let redisConnected = false;
 const redisUrl = process.env.REDIS_PRIVATE_URL || process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL;
-const useRedis = !!redisUrl;
 const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
 
-console.log('Environment check:', {
-  REDIS_PRIVATE_URL: !!process.env.REDIS_PRIVATE_URL,
-  REDIS_URL: !!process.env.REDIS_URL,
-  REDIS_PUBLIC_URL: !!process.env.REDIS_PUBLIC_URL,
-  redisUrl: redisUrl ? redisUrl.substring(0, 20) + '...' : null,
-  NODE_ENV: process.env.NODE_ENV,
-  RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
-  isProduction,
-  useRedis
-});
+// STRICT LOGGING
+console.log('🔍 ENVIRONMENT AUDIT:');
+console.log('  REDIS_PRIVATE_URL:', process.env.REDIS_PRIVATE_URL ? 'SET' : 'NOT SET');
+console.log('  REDIS_URL:', process.env.REDIS_URL ? 'SET' : 'NOT SET'); 
+console.log('  REDIS_PUBLIC_URL:', process.env.REDIS_PUBLIC_URL ? 'SET' : 'NOT SET');
+console.log('  NODE_ENV:', process.env.NODE_ENV);
+console.log('  RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
+console.log('  Is Production:', isProduction);
+console.log('  Redis URL Found:', !!redisUrl);
 
-if (useRedis) {
+// FAIL FAST IN PRODUCTION WITHOUT REDIS
+if (isProduction && !redisUrl) {
+  console.error('💥 FATAL ERROR: Production environment detected but NO Redis URL found!');
+  console.error('💥 This app REQUIRES a database for syncing between devices');
+  console.error('💥 Check Railway environment variables');
+  process.exit(1);
+}
+
+// FAIL FAST IN PRODUCTION WITHOUT REDIS CONNECTION
+if (isProduction && redisUrl) {
+  console.log('🔌 Attempting Redis connection...');
+  console.log('🔌 Redis URL (first 30 chars):', redisUrl.substring(0, 30) + '...');
+  
   // Railway requires family=0 for IPv6 support on private network
   const redisUrlWithOptions = redisUrl + (redisUrl.includes('?') ? '&' : '?') + 'family=0';
   
@@ -35,52 +45,85 @@ if (useRedis) {
   });
   
   client.on('connect', () => {
-    console.log('✅ Redis connected successfully');
+    console.log('✅ Redis connected successfully - app ready for multi-device sync');
     redisConnected = true;
   });
   
   client.on('error', (err) => {
-    console.error('❌ Redis Client Error:', err);
+    console.error('❌ Redis Client Error:', err.message);
+    console.error('❌ Connection details:', err);
     redisConnected = false;
   });
   
   client.on('disconnect', () => {
-    console.error('❌ Redis disconnected');
+    console.error('❌ Redis disconnected - app will fail');
     redisConnected = false;
   });
   
+  // FAIL THE ENTIRE APP IF REDIS DOESN'T CONNECT
   client.connect().catch(err => {
-    console.error('❌ Failed to connect to Redis:', err);
+    console.error('💥 FATAL: Redis connection failed:', err.message);
+    console.error('💥 Full error:', err);
+    console.error('💥 App cannot function without database - exiting');
+    process.exit(1);
   });
-} else if (isProduction) {
-  console.error('❌ FATAL: Redis required in production but REDIS_URL not found');
-  process.exit(1);
+  
+  // Give Redis 5 seconds to connect, then fail
+  setTimeout(() => {
+    if (!redisConnected) {
+      console.error('💥 FATAL: Redis connection timeout after 5 seconds');
+      console.error('💥 App requires database for multi-device sync - exiting');
+      process.exit(1);
+    }
+  }, 5000);
 }
 
-console.log(`Storage mode: ${useRedis ? 'Redis (required)' : 'File (local dev only)'}`);
+// Local development mode
+if (!isProduction) {
+  console.log('🏠 Local development mode - using file storage');
+}
+
+console.log(`🗄️  Storage mode: ${isProduction ? 'Redis (REQUIRED)' : 'File (local dev)'}`);
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
 async function readData() {
-  if (useRedis) {
-    if (!redisConnected) {
-      throw new Error('Database not connected - cannot read data');
+  console.log('📖 READ DATA - Environment:', isProduction ? 'PRODUCTION' : 'LOCAL');
+  
+  if (isProduction) {
+    // PRODUCTION: REDIS REQUIRED
+    console.log('📖 Production mode - checking Redis connection...');
+    
+    if (!client) {
+      console.error('💥 FATAL: No Redis client in production!');
+      throw new Error('FATAL: No database connection in production');
     }
+    
+    if (!redisConnected) {
+      console.error('💥 FATAL: Redis not connected in production!');
+      throw new Error('FATAL: Database not connected - multi-device sync impossible');
+    }
+    
     try {
+      console.log('📖 Reading from Redis...');
       const data = await client.get('swearJarData');
-      return data ? JSON.parse(data) : getDefaultData();
+      const result = data ? JSON.parse(data) : getDefaultData();
+      console.log('✅ Successfully read from Redis:', { ben: result.ben, kaiti: result.kaiti });
+      return result;
     } catch (error) {
-      console.error('Redis read error:', error);
-      throw new Error('Database read failed: ' + error.message);
+      console.error('💥 Redis read failed:', error.message);
+      throw new Error('FATAL: Database read failed - ' + error.message);
     }
   } else {
-    // Local development only
+    // LOCAL DEVELOPMENT: FILE STORAGE
+    console.log('📖 Local development - using file storage');
     try {
       const data = await fs.readFile(DATA_FILE, 'utf8');
       return JSON.parse(data);
     } catch (error) {
+      console.log('📖 Creating default data file');
       const defaultData = getDefaultData();
       await writeData(defaultData);
       return defaultData;
@@ -90,20 +133,36 @@ async function readData() {
 
 async function writeData(data) {
   data.lastUpdated = new Date().toISOString();
+  console.log('✍️ WRITE DATA - Environment:', isProduction ? 'PRODUCTION' : 'LOCAL');
+  console.log('✍️ Data to write:', { ben: data.ben, kaiti: data.kaiti });
   
-  if (useRedis) {
-    if (!redisConnected) {
-      throw new Error('Database not connected - cannot write data');
+  if (isProduction) {
+    // PRODUCTION: REDIS REQUIRED
+    console.log('✍️ Production mode - checking Redis connection...');
+    
+    if (!client) {
+      console.error('💥 FATAL: No Redis client in production!');
+      throw new Error('FATAL: No database connection in production');
     }
+    
+    if (!redisConnected) {
+      console.error('💥 FATAL: Redis not connected in production!');
+      throw new Error('FATAL: Database not connected - cannot save data');
+    }
+    
     try {
+      console.log('✍️ Writing to Redis...');
       await client.set('swearJarData', JSON.stringify(data));
+      console.log('✅ Successfully wrote to Redis');
     } catch (error) {
-      console.error('Redis write error:', error);
-      throw new Error('Database write failed: ' + error.message);
+      console.error('💥 Redis write failed:', error.message);
+      throw new Error('FATAL: Database write failed - ' + error.message);
     }
   } else {
-    // Local development only
+    // LOCAL DEVELOPMENT: FILE STORAGE
+    console.log('✍️ Local development - writing to file');
     await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+    console.log('✅ Successfully wrote to file');
   }
 }
 
