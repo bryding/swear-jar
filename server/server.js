@@ -8,27 +8,49 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
 
-// Simple in-memory storage for Railway (resets on restart but works for testing)
-let memoryStore = {
-  ben: 0,
-  kaiti: 0,
-  lastUpdated: new Date().toISOString()
-};
-
-// Redis setup - use Railway Redis if available, fallback to memory store
+// Redis setup - REQUIRE Redis in production
 let client;
+let redisConnected = false;
 const useRedis = !!process.env.REDIS_URL;
-const useMemory = process.env.NODE_ENV === 'production' && !useRedis;
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
+
+console.log('Environment check:', {
+  REDIS_URL: !!process.env.REDIS_URL,
+  NODE_ENV: process.env.NODE_ENV,
+  RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
+  isProduction,
+  useRedis
+});
 
 if (useRedis) {
   client = redis.createClient({
     url: process.env.REDIS_URL
   });
-  client.on('error', (err) => console.log('Redis Client Error', err));
-  client.connect();
+  
+  client.on('connect', () => {
+    console.log('✅ Redis connected successfully');
+    redisConnected = true;
+  });
+  
+  client.on('error', (err) => {
+    console.error('❌ Redis Client Error:', err);
+    redisConnected = false;
+  });
+  
+  client.on('disconnect', () => {
+    console.error('❌ Redis disconnected');
+    redisConnected = false;
+  });
+  
+  client.connect().catch(err => {
+    console.error('❌ Failed to connect to Redis:', err);
+  });
+} else if (isProduction) {
+  console.error('❌ FATAL: Redis required in production but REDIS_URL not found');
+  process.exit(1);
 }
 
-console.log(`Storage mode: ${useRedis ? 'Redis' : useMemory ? 'Memory' : 'File'}`);
+console.log(`Storage mode: ${useRedis ? 'Redis (required)' : 'File (local dev only)'}`);
 
 app.use(cors());
 app.use(express.json());
@@ -36,16 +58,18 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 async function readData() {
   if (useRedis) {
+    if (!redisConnected) {
+      throw new Error('Database not connected - cannot read data');
+    }
     try {
       const data = await client.get('swearJarData');
       return data ? JSON.parse(data) : getDefaultData();
     } catch (error) {
       console.error('Redis read error:', error);
-      return getDefaultData();
+      throw new Error('Database read failed: ' + error.message);
     }
-  } else if (useMemory) {
-    return { ...memoryStore };
   } else {
+    // Local development only
     try {
       const data = await fs.readFile(DATA_FILE, 'utf8');
       return JSON.parse(data);
@@ -61,14 +85,17 @@ async function writeData(data) {
   data.lastUpdated = new Date().toISOString();
   
   if (useRedis) {
+    if (!redisConnected) {
+      throw new Error('Database not connected - cannot write data');
+    }
     try {
       await client.set('swearJarData', JSON.stringify(data));
     } catch (error) {
       console.error('Redis write error:', error);
+      throw new Error('Database write failed: ' + error.message);
     }
-  } else if (useMemory) {
-    memoryStore = { ...data };
   } else {
+    // Local development only
     await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
   }
 }
@@ -90,12 +117,35 @@ function validateCount(count) {
   return !isNaN(num) && num >= 0;
 }
 
+// Debug endpoint to check database status
+app.get('/api/status', (req, res) => {
+  const status = {
+    database: useRedis ? 'Redis' : 'File',
+    connected: useRedis ? redisConnected : true,
+    redisUrl: !!process.env.REDIS_URL,
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
+      isProduction
+    },
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('Status check:', status);
+  res.json(status);
+});
+
 app.get('/api/counts', async (req, res) => {
   try {
     const data = await readData();
     res.json(data);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to read data' });
+    console.error('API Error reading counts:', error.message);
+    res.status(500).json({ 
+      error: error.message,
+      database: useRedis ? 'Redis' : 'File',
+      connected: useRedis ? redisConnected : true
+    });
   }
 });
 
