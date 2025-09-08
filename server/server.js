@@ -55,20 +55,14 @@ if (isProduction && redisUrl) {
     redisConnected = false;
   });
   
-  // FAIL THE ENTIRE APP IF REDIS DOESN'T CONNECT
-  const connectPromise = client.connect().catch(err => {
-    console.error('💥 FATAL: Redis connection failed:', err.message);
-    console.error('💥 Full error:', err);
-    console.error('💥 App cannot function without database - exiting');
-    process.exit(1);
-  });
-  
-  // Give Redis 3 seconds to connect, then fail HARD
+  // FORCE KILL APP IF REDIS DOESN'T CONNECT IN 3 SECONDS
   const connectionTimeout = setTimeout(() => {
     console.error('💥 FATAL: Redis connection timeout after 3 seconds');
     console.error('💥 Connection is hanging - this indicates network/DNS issues');
     console.error('💥 Redis URL being used:', redisUrlWithOptions.substring(0, 50) + '...');
-    console.error('💥 App requires database for multi-device sync - exiting');
+    console.error('💥 Full Redis URL (masked):', redisUrlWithOptions.replace(/:([^:@]+)@/, ':***@'));
+    console.error('💥 This means Railway Redis service is not properly connected');
+    console.error('💥 App requires database for multi-device sync - FORCE EXIT');
     process.exit(1);
   }, 3000);
   
@@ -77,6 +71,17 @@ if (isProduction && redisUrl) {
     clearTimeout(connectionTimeout);
     console.log('✅ Redis connected successfully - app ready for multi-device sync');
     redisConnected = true;
+  });
+  
+  // ATTEMPT CONNECTION - BUT TIMEOUT WILL KILL US IF IT HANGS
+  console.log('⏰ Starting 3-second connection timeout...');
+  client.connect().catch(err => {
+    clearTimeout(connectionTimeout);
+    console.error('💥 FATAL: Redis connection failed:', err.message);
+    console.error('💥 Full error:', err);
+    console.error('💥 This is a connection error, not a timeout');
+    console.error('💥 App cannot function without database - exiting');
+    process.exit(1);
   });
 }
 
