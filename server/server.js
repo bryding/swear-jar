@@ -8,9 +8,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
 
-// Redis setup - use Railway Redis if available, fallback to JSON file
+// Simple in-memory storage for Railway (resets on restart but works for testing)
+let memoryStore = {
+  ben: 0,
+  kaiti: 0,
+  lastUpdated: new Date().toISOString()
+};
+
+// Redis setup - use Railway Redis if available, fallback to memory store
 let client;
 const useRedis = !!process.env.REDIS_URL;
+const useMemory = process.env.NODE_ENV === 'production' && !useRedis;
 
 if (useRedis) {
   client = redis.createClient({
@@ -19,6 +27,8 @@ if (useRedis) {
   client.on('error', (err) => console.log('Redis Client Error', err));
   client.connect();
 }
+
+console.log(`Storage mode: ${useRedis ? 'Redis' : useMemory ? 'Memory' : 'File'}`);
 
 app.use(cors());
 app.use(express.json());
@@ -33,6 +43,8 @@ async function readData() {
       console.error('Redis read error:', error);
       return getDefaultData();
     }
+  } else if (useMemory) {
+    return { ...memoryStore };
   } else {
     try {
       const data = await fs.readFile(DATA_FILE, 'utf8');
@@ -54,6 +66,8 @@ async function writeData(data) {
     } catch (error) {
       console.error('Redis write error:', error);
     }
+  } else if (useMemory) {
+    memoryStore = { ...data };
   } else {
     await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
   }
