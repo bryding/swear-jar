@@ -1,5 +1,10 @@
 class SwearJarApp {
     constructor() {
+        this.authScreen = document.getElementById('authScreen');
+        this.pinInput = document.getElementById('pinInput');
+        this.pinSubmit = document.getElementById('pinSubmit');
+        this.authError = document.getElementById('authError');
+        
         this.connectionScreen = document.getElementById('connectionScreen');
         this.connectionMessage = document.getElementById('connectionMessage');
         this.connectionDetails = document.getElementById('connectionDetails');
@@ -16,6 +21,8 @@ class SwearJarApp {
         this.kaitiCount = document.getElementById('kaitiCount');
         this.payoutTotal = document.getElementById('payoutTotal');
         
+        this.authToken = localStorage.getItem('swearjar_token');
+        this.isAuthenticated = false;
         this.databaseConnected = false;
         this.connectionLog = [];
         
@@ -52,17 +59,35 @@ class SwearJarApp {
 
     async init() {
         this.log('Frontend app starting...');
-        this.log('Checking database connection...');
         
+        // Setup auth event listeners
+        this.setupAuthHandlers();
         this.retryButton.addEventListener('click', () => this.retryConnection());
         
-        await this.checkDatabaseConnection();
-        
-        if (this.databaseConnected) {
-            this.enableApp();
-        } else {
-            this.showConnectionError();
+        // Check authentication first
+        if (this.authToken) {
+            this.log('Existing token found, validating...');
+            const isValid = await this.validateToken(this.authToken);
+            if (isValid) {
+                this.isAuthenticated = true;
+                this.showConnectionScreen();
+                await this.checkDatabaseConnection();
+                
+                if (this.databaseConnected) {
+                    this.enableApp();
+                } else {
+                    this.showConnectionError();
+                }
+                return;
+            } else {
+                this.log('Token invalid, clearing...');
+                localStorage.removeItem('swearjar_token');
+                this.authToken = null;
+            }
         }
+        
+        // Show auth screen if no valid token
+        this.showAuthScreen();
     }
 
     async checkDatabaseConnection() {
@@ -133,8 +158,12 @@ class SwearJarApp {
 
     async testDataOperations() {
         try {
-            // Test reading data
-            const readResponse = await fetch('/api/counts');
+            // Test reading data with auth token
+            const readResponse = await fetch('/api/counts', {
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`
+                }
+            });
             
             if (!readResponse.ok) {
                 const errorData = await readResponse.json();
@@ -212,7 +241,11 @@ class SwearJarApp {
         if (!this.databaseConnected) return;
         
         try {
-            const response = await fetch('/api/counts');
+            const response = await fetch('/api/counts', {
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`
+                }
+            });
             if (response.ok) {
                 const data = await response.json();
                 this.updateDisplay(data);
@@ -233,7 +266,10 @@ class SwearJarApp {
         try {
             const response = await fetch(`/api/swear/${person}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.authToken}`
+                }
             });
 
             if (!response.ok) {
@@ -268,7 +304,10 @@ class SwearJarApp {
         try {
             const response = await fetch('/api/payout', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.authToken}`
+                }
             });
 
             if (!response.ok) {
@@ -333,7 +372,10 @@ class SwearJarApp {
         try {
             const response = await fetch(`/api/counts/ben`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.authToken}`
+                },
                 body: JSON.stringify({ count: parseInt(count) })
             });
 
@@ -360,7 +402,10 @@ class SwearJarApp {
         try {
             const response = await fetch(`/api/counts/kaiti`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.authToken}`
+                },
                 body: JSON.stringify({ count: parseInt(count) })
             });
 
@@ -376,6 +421,127 @@ class SwearJarApp {
         } catch (error) {
             console.error(`Failed to set Kaiti's count:`, error.message);
         }
+    }
+
+    // Authentication methods
+    setupAuthHandlers() {
+        this.pinSubmit.addEventListener('click', () => this.submitPin());
+        this.pinInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.submitPin();
+            }
+        });
+
+        // Auto-focus PIN input
+        this.pinInput.focus();
+    }
+
+    async validateToken(token) {
+        try {
+            const response = await fetch('/api/auth/validate-token', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                return result.valid;
+            }
+            return false;
+        } catch (error) {
+            console.error('Token validation error:', error);
+            return false;
+        }
+    }
+
+    async submitPin() {
+        const pin = this.pinInput.value.trim();
+        
+        if (!pin) {
+            this.showAuthError('Please enter a PIN');
+            return;
+        }
+
+        if (pin.length !== 5) {
+            this.showAuthError('PIN must be 5 digits');
+            return;
+        }
+
+        this.pinSubmit.disabled = true;
+        this.pinSubmit.textContent = 'Verifying...';
+        this.hideAuthError();
+
+        try {
+            const response = await fetch('/api/auth/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ pin })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.authToken = result.token;
+                localStorage.setItem('swearjar_token', result.token);
+                this.isAuthenticated = true;
+                
+                this.log('Authentication successful', 'success');
+                this.showConnectionScreen();
+                
+                await this.checkDatabaseConnection();
+                
+                if (this.databaseConnected) {
+                    this.enableApp();
+                } else {
+                    this.showConnectionError();
+                }
+            } else {
+                throw new Error(result.error || 'Authentication failed');
+            }
+        } catch (error) {
+            this.log(`Authentication failed: ${error.message}`, 'error');
+            
+            if (error.message.includes('Too many')) {
+                this.showAuthError(error.message);
+            } else {
+                this.showAuthError('Invalid PIN. Please try again.');
+            }
+            
+            this.pinInput.value = '';
+            this.pinInput.focus();
+        } finally {
+            this.pinSubmit.disabled = false;
+            this.pinSubmit.textContent = 'Unlock';
+        }
+    }
+
+    showAuthScreen() {
+        this.authScreen.style.display = 'flex';
+        this.connectionScreen.style.display = 'none';
+        this.appContainer.style.display = 'none';
+        this.pinInput.focus();
+    }
+
+    showConnectionScreen() {
+        this.authScreen.style.display = 'none';
+        this.connectionScreen.style.display = 'flex';
+        this.appContainer.style.display = 'none';
+    }
+
+    showAuthError(message) {
+        this.authError.textContent = message;
+        this.authError.classList.add('show');
+        
+        setTimeout(() => {
+            this.authError.classList.remove('show');
+        }, 5000);
+    }
+
+    hideAuthError() {
+        this.authError.classList.remove('show');
     }
 }
 

@@ -3,6 +3,7 @@ const cors = require('cors');
 const fs = require('fs').promises;
 const path = require('path');
 const redis = require('redis');
+const AuthManager = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,6 +13,7 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 let client;
 let redisConnected = false;
 let httpServer = null;
+let authManager;
 const redisUrl = process.env.REDIS_PRIVATE_URL || process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL;
 const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -127,6 +129,9 @@ if (!isProduction && redisUrl) {
 
 console.log(`🗄️  Storage mode: ${isProduction ? 'Redis (REQUIRED)' : 'File (local dev)'}`);
 
+// Initialize auth manager
+authManager = new AuthManager({ redis: client }, isProduction);
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
@@ -225,7 +230,48 @@ function validateCount(count) {
   return !isNaN(num) && num >= 0;
 }
 
-// Debug endpoint to check database status
+// Authentication endpoints
+app.post('/api/auth/validate', async (req, res) => {
+  try {
+    const { pin } = req.body;
+    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+    
+    if (!pin) {
+      return res.status(400).json({ error: 'PIN is required' });
+    }
+
+    const result = await authManager.validatePin(pin, clientIp);
+    res.json({
+      success: true,
+      token: result.token,
+      expiresAt: result.expiresAt
+    });
+  } catch (error) {
+    console.error('PIN validation error:', error.message);
+    res.status(401).json({ 
+      error: error.message,
+      code: error.message.includes('Too many') ? 'RATE_LIMITED' : 'INVALID_PIN'
+    });
+  }
+});
+
+app.get('/api/auth/validate-token', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const isValid = await authManager.validateToken(token);
+    res.json({ valid: isValid });
+  } catch (error) {
+    console.error('Token validation error:', error.message);
+    res.status(500).json({ error: 'Token validation failed' });
+  }
+});
+
+// Debug endpoint to check database status (no auth required)
 app.get('/api/status', (req, res) => {
   const usingRedis = !!redisUrl;
   const status = {
@@ -244,7 +290,7 @@ app.get('/api/status', (req, res) => {
   res.json(status);
 });
 
-app.get('/api/counts', async (req, res) => {
+app.get('/api/counts', authManager.middleware(), async (req, res) => {
   try {
     const data = await readData();
     res.json(data);
@@ -258,7 +304,7 @@ app.get('/api/counts', async (req, res) => {
   }
 });
 
-app.post('/api/swear/:person', async (req, res) => {
+app.post('/api/swear/:person', authManager.middleware(), async (req, res) => {
   const { person } = req.params;
   
   if (!validatePerson(person)) {
@@ -275,7 +321,7 @@ app.post('/api/swear/:person', async (req, res) => {
   }
 });
 
-app.put('/api/counts/:person', async (req, res) => {
+app.put('/api/counts/:person', authManager.middleware(), async (req, res) => {
   const { person } = req.params;
   const { count } = req.body;
   
@@ -297,7 +343,7 @@ app.put('/api/counts/:person', async (req, res) => {
   }
 });
 
-app.post('/api/payout', async (req, res) => {
+app.post('/api/payout', authManager.middleware(), async (req, res) => {
   try {
     const data = await readData();
     data.ben = 0;
@@ -317,9 +363,15 @@ app.get('/', (req, res) => {
 function startHttpServer() {
   if (httpServer) return; // Already started
   
+  // Start periodic cleanup of expired tokens
+  setInterval(() => {
+    authManager.cleanupExpiredTokens().catch(console.error);
+  }, 60 * 60 * 1000); // Every hour
+  
   httpServer = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🫙 Swear jar server running on port ${PORT}`);
     console.log(`📱 Open http://localhost:${PORT} to use the app`);
     console.log(`🔗 App ready with Redis connection - multi-device sync enabled!`);
+    console.log(`🔐 Authentication enabled - PIN required for access`);
   });
 }
