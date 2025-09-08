@@ -11,14 +11,15 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 // Redis setup - REQUIRE Redis in production
 let client;
 let redisConnected = false;
-const redisUrl = process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL;
+const redisUrl = process.env.REDIS_PRIVATE_URL || process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL;
 const useRedis = !!redisUrl;
 const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
 
 console.log('Environment check:', {
+  REDIS_PRIVATE_URL: !!process.env.REDIS_PRIVATE_URL,
   REDIS_URL: !!process.env.REDIS_URL,
   REDIS_PUBLIC_URL: !!process.env.REDIS_PUBLIC_URL,
-  redisUrl: !!redisUrl,
+  redisUrl: redisUrl ? redisUrl.substring(0, 20) + '...' : null,
   NODE_ENV: process.env.NODE_ENV,
   RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
   isProduction,
