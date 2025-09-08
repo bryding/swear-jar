@@ -107,7 +107,7 @@ class AuthManager {
             createdAt: Date.now()
         };
 
-        if (this.isProduction && this.storage.redis) {
+        if (this.storage.redis) {
             // Store in Redis with TTL
             const ttlSeconds = Math.floor((expiresAt - Date.now()) / 1000);
             await this.storage.redis.setEx(`auth:${token}`, ttlSeconds, JSON.stringify(tokenData));
@@ -126,7 +126,7 @@ class AuthManager {
         try {
             let tokenData;
 
-            if (this.isProduction && this.storage.redis) {
+            if (this.storage.redis) {
                 // Check Redis
                 const data = await this.storage.redis.get(`auth:${token}`);
                 if (!data) return false;
@@ -153,7 +153,7 @@ class AuthManager {
 
     // Remove expired token
     async removeToken(token) {
-        if (this.isProduction && this.storage.redis) {
+        if (this.storage.redis) {
             await this.storage.redis.del(`auth:${token}`);
         } else {
             const authData = await this.getAuthData();
