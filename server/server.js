@@ -2,33 +2,69 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs').promises;
 const path = require('path');
+const redis = require('redis');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
+
+// Redis setup - use Railway Redis if available, fallback to JSON file
+let client;
+const useRedis = !!process.env.REDIS_URL;
+
+if (useRedis) {
+  client = redis.createClient({
+    url: process.env.REDIS_URL
+  });
+  client.on('error', (err) => console.log('Redis Client Error', err));
+  client.connect();
+}
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
 async function readData() {
-  try {
-    const data = await fs.readFile(DATA_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    const defaultData = {
-      ben: 0,
-      kaiti: 0,
-      lastUpdated: new Date().toISOString()
-    };
-    await writeData(defaultData);
-    return defaultData;
+  if (useRedis) {
+    try {
+      const data = await client.get('swearJarData');
+      return data ? JSON.parse(data) : getDefaultData();
+    } catch (error) {
+      console.error('Redis read error:', error);
+      return getDefaultData();
+    }
+  } else {
+    try {
+      const data = await fs.readFile(DATA_FILE, 'utf8');
+      return JSON.parse(data);
+    } catch (error) {
+      const defaultData = getDefaultData();
+      await writeData(defaultData);
+      return defaultData;
+    }
   }
 }
 
 async function writeData(data) {
   data.lastUpdated = new Date().toISOString();
-  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+  
+  if (useRedis) {
+    try {
+      await client.set('swearJarData', JSON.stringify(data));
+    } catch (error) {
+      console.error('Redis write error:', error);
+    }
+  } else {
+    await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+  }
+}
+
+function getDefaultData() {
+  return {
+    ben: 0,
+    kaiti: 0,
+    lastUpdated: new Date().toISOString()
+  };
 }
 
 function validatePerson(person) {
