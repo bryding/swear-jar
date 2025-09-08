@@ -44,11 +44,6 @@ if (isProduction && redisUrl) {
     url: redisUrlWithOptions
   });
   
-  client.on('connect', () => {
-    console.log('✅ Redis connected successfully - app ready for multi-device sync');
-    redisConnected = true;
-  });
-  
   client.on('error', (err) => {
     console.error('❌ Redis Client Error:', err.message);
     console.error('❌ Connection details:', err);
@@ -61,21 +56,28 @@ if (isProduction && redisUrl) {
   });
   
   // FAIL THE ENTIRE APP IF REDIS DOESN'T CONNECT
-  client.connect().catch(err => {
+  const connectPromise = client.connect().catch(err => {
     console.error('💥 FATAL: Redis connection failed:', err.message);
     console.error('💥 Full error:', err);
     console.error('💥 App cannot function without database - exiting');
     process.exit(1);
   });
   
-  // Give Redis 5 seconds to connect, then fail
-  setTimeout(() => {
-    if (!redisConnected) {
-      console.error('💥 FATAL: Redis connection timeout after 5 seconds');
-      console.error('💥 App requires database for multi-device sync - exiting');
-      process.exit(1);
-    }
-  }, 5000);
+  // Give Redis 3 seconds to connect, then fail HARD
+  const connectionTimeout = setTimeout(() => {
+    console.error('💥 FATAL: Redis connection timeout after 3 seconds');
+    console.error('💥 Connection is hanging - this indicates network/DNS issues');
+    console.error('💥 Redis URL being used:', redisUrlWithOptions.substring(0, 50) + '...');
+    console.error('💥 App requires database for multi-device sync - exiting');
+    process.exit(1);
+  }, 3000);
+  
+  // Clear timeout if connection succeeds
+  client.on('connect', () => {
+    clearTimeout(connectionTimeout);
+    console.log('✅ Redis connected successfully - app ready for multi-device sync');
+    redisConnected = true;
+  });
 }
 
 // Local development mode
