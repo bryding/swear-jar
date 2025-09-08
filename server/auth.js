@@ -42,7 +42,7 @@ class AuthManager {
             record.attempts = 0;
         }
 
-        return { allowed: record.attempts < 3 };
+        return { allowed: record.attempts < 30 };
     }
 
     // Record failed attempt
@@ -53,8 +53,8 @@ class AuthManager {
         record.attempts++;
         record.lastAttempt = now;
 
-        // Lock after 3 failed attempts for 15 minutes
-        if (record.attempts >= 3) {
+        // Lock after 30 failed attempts for 15 minutes
+        if (record.attempts >= 30) {
             record.lockUntil = now + (15 * 60 * 1000);
         }
 

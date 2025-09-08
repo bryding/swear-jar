@@ -1,8 +1,14 @@
 class SwearJarApp {
     constructor() {
         this.authScreen = document.getElementById('authScreen');
-        this.pinInput = document.getElementById('pinInput');
-        this.pinSubmit = document.getElementById('pinSubmit');
+        this.pinInputs = [
+            document.getElementById('digit0'),
+            document.getElementById('digit1'),
+            document.getElementById('digit2'),
+            document.getElementById('digit3'),
+            document.getElementById('digit4')
+        ];
+        this.pinContainer = document.querySelector('.pin-input-container');
         this.authError = document.getElementById('authError');
         
         this.connectionScreen = document.getElementById('connectionScreen');
@@ -425,15 +431,91 @@ class SwearJarApp {
 
     // Authentication methods
     setupAuthHandlers() {
-        this.pinSubmit.addEventListener('click', () => this.submitPin());
-        this.pinInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.submitPin();
-            }
+        this.pinInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => this.handleDigitInput(e, index));
+            input.addEventListener('keydown', (e) => this.handleDigitKeydown(e, index));
+            input.addEventListener('paste', (e) => this.handlePaste(e));
         });
 
-        // Auto-focus PIN input
-        this.pinInput.focus();
+        // Auto-focus first input
+        this.pinInputs[0].focus();
+    }
+
+    handleDigitInput(e, index) {
+        const value = e.target.value;
+        
+        // Only allow digits
+        if (!/^\d$/.test(value)) {
+            e.target.value = '';
+            return;
+        }
+
+        // Add filled class
+        e.target.classList.add('filled');
+
+        // Auto advance to next input
+        if (index < 4) {
+            this.pinInputs[index + 1].focus();
+        }
+
+        // Check if all digits are filled
+        if (index === 4) {
+            this.validatePin();
+        }
+    }
+
+    handleDigitKeydown(e, index) {
+        // Handle backspace
+        if (e.key === 'Backspace' && e.target.value === '' && index > 0) {
+            this.pinInputs[index - 1].focus();
+            this.pinInputs[index - 1].value = '';
+            this.pinInputs[index - 1].classList.remove('filled');
+        }
+        
+        // Handle arrow keys
+        if (e.key === 'ArrowLeft' && index > 0) {
+            this.pinInputs[index - 1].focus();
+        } else if (e.key === 'ArrowRight' && index < 4) {
+            this.pinInputs[index + 1].focus();
+        }
+    }
+
+    handlePaste(e) {
+        e.preventDefault();
+        const paste = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 5);
+        
+        for (let i = 0; i < paste.length && i < 5; i++) {
+            this.pinInputs[i].value = paste[i];
+            this.pinInputs[i].classList.add('filled');
+        }
+        
+        if (paste.length === 5) {
+            this.validatePin();
+        } else if (paste.length > 0) {
+            this.pinInputs[Math.min(paste.length, 4)].focus();
+        }
+    }
+
+    getPin() {
+        return this.pinInputs.map(input => input.value).join('');
+    }
+
+    clearPin() {
+        this.pinInputs.forEach(input => {
+            input.value = '';
+            input.classList.remove('filled');
+        });
+        this.pinInputs[0].focus();
+    }
+
+    validatePin() {
+        const pin = this.getPin();
+        
+        if (pin.length !== 5) {
+            return;
+        }
+
+        this.submitPin(pin);
     }
 
     async validateToken(token) {
@@ -455,21 +537,7 @@ class SwearJarApp {
         }
     }
 
-    async submitPin() {
-        const pin = this.pinInput.value.trim();
-        
-        if (!pin) {
-            this.showAuthError('Please enter a PIN');
-            return;
-        }
-
-        if (pin.length !== 5) {
-            this.showAuthError('PIN must be 5 digits');
-            return;
-        }
-
-        this.pinSubmit.disabled = true;
-        this.pinSubmit.textContent = 'Verifying...';
+    async submitPin(pin) {
         this.hideAuthError();
 
         try {
@@ -504,17 +572,22 @@ class SwearJarApp {
         } catch (error) {
             this.log(`Authentication failed: ${error.message}`, 'error');
             
+            // Shake the PIN container
+            this.pinContainer.classList.add('shake');
+            setTimeout(() => {
+                this.pinContainer.classList.remove('shake');
+            }, 600);
+            
             if (error.message.includes('Too many')) {
                 this.showAuthError(error.message);
             } else {
-                this.showAuthError('Invalid PIN. Please try again.');
+                this.showAuthError('Incorrect PIN. Please try again.');
             }
             
-            this.pinInput.value = '';
-            this.pinInput.focus();
-        } finally {
-            this.pinSubmit.disabled = false;
-            this.pinSubmit.textContent = 'Unlock';
+            // Clear the PIN after a short delay
+            setTimeout(() => {
+                this.clearPin();
+            }, 600);
         }
     }
 
@@ -522,7 +595,7 @@ class SwearJarApp {
         this.authScreen.style.display = 'flex';
         this.connectionScreen.style.display = 'none';
         this.appContainer.style.display = 'none';
-        this.pinInput.focus();
+        this.pinInputs[0].focus();
     }
 
     showConnectionScreen() {
