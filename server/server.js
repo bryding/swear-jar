@@ -11,11 +11,14 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 // Redis setup - REQUIRE Redis in production
 let client;
 let redisConnected = false;
-const useRedis = !!process.env.REDIS_URL;
+const redisUrl = process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL;
+const useRedis = !!redisUrl;
 const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
 
 console.log('Environment check:', {
   REDIS_URL: !!process.env.REDIS_URL,
+  REDIS_PUBLIC_URL: !!process.env.REDIS_PUBLIC_URL,
+  redisUrl: !!redisUrl,
   NODE_ENV: process.env.NODE_ENV,
   RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
   isProduction,
@@ -23,8 +26,11 @@ console.log('Environment check:', {
 });
 
 if (useRedis) {
+  // Railway requires family=0 for IPv6 support on private network
+  const redisUrlWithOptions = redisUrl + (redisUrl.includes('?') ? '&' : '?') + 'family=0';
+  
   client = redis.createClient({
-    url: process.env.REDIS_URL
+    url: redisUrlWithOptions
   });
   
   client.on('connect', () => {
