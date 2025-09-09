@@ -164,16 +164,3 @@ beforeEach(() => {
   global.mockCSS.removeClass.mockClear();
 });
 
-// Clean up DOM after each test (disabled to avoid EventTarget issues)
-// afterEach(() => {
-//   // Simple cleanup to avoid EventTarget issues
-//   try {
-//     if (document && document.body) {
-//       // Just clear content, don't mess with event listeners
-//       document.body.innerHTML = '';
-//     }
-//   } catch (error) {
-//     // Ignore cleanup errors to avoid test failures
-//     console.warn('DOM cleanup error:', error.message);
-//   }
-// });

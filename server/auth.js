@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const fs = require('fs').promises;
+const path = require('path');
 
 class AuthManager {
     constructor(storage, isProduction = false) {
@@ -165,8 +167,6 @@ class AuthManager {
     // Get auth data from file (for local development)
     async getAuthData() {
         try {
-            const fs = require('fs').promises;
-            const path = require('path');
             const authFile = path.join(__dirname, 'auth.json');
             const data = await fs.readFile(authFile, 'utf8');
             return JSON.parse(data);
@@ -178,8 +178,6 @@ class AuthManager {
 
     // Save auth data to file (for local development)
     async saveAuthData(data) {
-        const fs = require('fs').promises;
-        const path = require('path');
         const authFile = path.join(__dirname, 'auth.json');
         await fs.writeFile(authFile, JSON.stringify(data, null, 2));
     }
